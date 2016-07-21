@@ -17,7 +17,9 @@
 #   limitations under the License.
 
 from setuptools import setup
+from setuptools.extension import Extension
 
+from Cython.Build import cythonize
 setup(name='pyorient',
     version='1.5.4',
     author='Niko Usai <mogui83@gmail.com>, Domenico Lupinetti <ostico@gmail.com>',
@@ -28,5 +30,6 @@ setup(name='pyorient',
         'pyorient',
         'pyorient.messages',
         'pyorient.ogm',
-    ]
+    ],
+    ext_modules=cythonize("pyorient/serializations.pyx")
 )
