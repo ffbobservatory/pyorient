@@ -67,8 +67,12 @@ class BaseMessage(object):
         Lazy return of the serialization, we retrive the type from the :class: `OrientSocket <pyorient.orient.OrientSocket>` object
         :return: an Instance of the serializer suitable for decoding or encoding
         """
-        return OrientSerialization.get_impl(self._orientSocket.serialization_type)
-
+        if self._orientSocket.serialization_type==OrientSerialization.Binary:
+            return OrientSerialization.get_impl(self._orientSocket.serialization_type,
+                                                self._orientSocket._props)
+        else:
+            return OrientSerialization.get_impl(self._orientSocket.serialization_type)
+            
     def get_orient_socket_instance(self):
         return self._orientSocket
 
@@ -456,6 +460,7 @@ class BaseMessage(object):
         :raise: PyOrientNullRecordException
         :return: OrientRecordLink,OrientRecord
         """
+        
         marker = self._decode_field( FIELD_SHORT )  # marker
 
         if marker is -2:
@@ -465,7 +470,11 @@ class BaseMessage(object):
         else:
             # read record
             __res = self._decode_field( FIELD_RECORD )
-
+            print self.get_serializer()
+            print __res.keys()
+            print len(__res['content'])
+            print __res['content'].__sizeof__()
+            print ''.join('{:02x}'.format(ord(x)) for x in __res['content'][:40])
             # bug in orientdb csv serialization in snapshot 2.0
             class_name, data = self.get_serializer().decode(__res['content'].rstrip())
 

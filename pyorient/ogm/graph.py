@@ -12,6 +12,8 @@ from ..utils import to_unicode
 import pyorient
 from collections import namedtuple
 
+from pyorient.serializations import OrientSerialization
+
 ServerVersion = namedtuple('orientdb_version', ['major', 'minor', 'build'])
 
 class Graph(object):
@@ -26,8 +28,7 @@ class Graph(object):
 
         :note: user only meaningful when cred also provided.
         """
-
-        self.client = pyorient.OrientDB(config.host, config.port)
+        self.client = pyorient.OrientDB(config.host, config.port, config.serialization_type)
         self.client.connect(config.user, config.cred)
 
         self.config = config

@@ -31,5 +31,5 @@ setup(name='pyorient',
         'pyorient.messages',
         'pyorient.ogm',
     ],
-    ext_modules=cythonize("pyorient/serializations.pyx")
+    #ext_modules=cythonize("pyorient/serializations.pyx")
 )

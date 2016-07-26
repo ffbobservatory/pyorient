@@ -34,7 +34,7 @@ class OrientSocket(object):
     :param port: integer port of the server
 
     '''
-    def __init__(self, host, port):
+    def __init__(self, host, port, serialization_type=OrientSerialization.Binary ):
 
         self.connected = False
         self.host = host
@@ -44,7 +44,7 @@ class OrientSocket(object):
         self.session_id = -1
         self.auth_token = b''
         self.db_opened = None
-        self.serialization_type = OrientSerialization.CSV
+        self.serialization_type = serialization_type
         self.in_transaction = False
 
     def get_connection(self):
@@ -207,9 +207,9 @@ class OrientDB(object):
         TxCommitMessage="pyorient.messages.commands",
     )
 
-    def __init__(self, host='localhost', port=2424):
+    def __init__(self, host='localhost', port=2424, serialization_type=OrientSerialization.Binary):
         if not isinstance(host, OrientSocket):
-            connection = OrientSocket(host, port)
+            connection = OrientSocket(host, port, serialization_type)
         else:
             connection = host
 
@@ -226,7 +226,8 @@ class OrientDB(object):
         self._cluster_map = None
         self._cluster_reverse_map = None
         self._connection = connection
-
+        self._serialization_type = serialization_type
+        
     def __getattr__(self, item):
 
         # No special handling for private attributes/methods.
@@ -278,13 +279,13 @@ class OrientDB(object):
 
     # SERVER COMMANDS
 
-    def connect(self, user, password, client_id='', serialization_type=OrientSerialization.CSV):
+    def connect(self, user, password, client_id=''):
         '''Connect to the server without opening any database
 
         :param user: the username of the user on the server. Example: "root"
         :param password: the password of the user on the server. Example: "37aed6392"
         :param client_id: client's id - can be null for clients. In clustered configurations it's the distributed node ID as TCP host:port
-        :param serialization_type: the serialization format required by the client, now it can be just OrientSerialization.CSV
+        ## :param serialization_type: the serialization format required by the client, now it can be just OrientSerialization.CSV
 
         Usage to open a connection as root::
 
@@ -294,7 +295,7 @@ class OrientDB(object):
 
         '''
         return self.get_message("ConnectMessage") \
-            .prepare((user, password, client_id, serialization_type)).send().fetch_response()
+            .prepare((user, password, client_id, self._serialization_type)).send().fetch_response()
 
     def db_count_records(self):
         '''Returns the number of records in the currently open database.
@@ -386,6 +387,11 @@ class OrientDB(object):
         self.clusters = clusters
         self._reload_clusters()
         self.nodes = nodes
+
+        # store property id->property name, type map for binary serialization
+        if self._serialization_type==OrientSerialization.Binary:
+            self._connection._props = {x['id']:[x['name'], x['type']] for x in
+                        self.command("select from #0:1")[0].oRecordData['globalProperties']}
 
         return self.clusters
 

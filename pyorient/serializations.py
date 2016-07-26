@@ -1,7 +1,3 @@
-# cython: profile=True
-# 11cython: linetrace=True
-# 11distutils: define_macros=CYTHON_TRACE_NOGIL=1
-
 import sys
 import time
 from datetime import date, datetime
@@ -10,11 +6,12 @@ from .otypes import OrientRecordLink, OrientRecord, OrientBinaryObject
 from .exceptions import PyOrientBadMethodCallException
 
 class OrientSerializationBinary(object):
-    def __init__(self):
+    def __init__(self, props):
         self.className = None
         self.data = {}
         self.type = OrientSerialization.Binary
-
+        self.props = props
+        
     def decode(self, content):
         raise NotImplementedError
 
@@ -192,32 +189,29 @@ class OrientSerializationCSV(object):
 
         return [collected, content[( i + 1 ):], is_class_name]
 
-    def _parse_key( self, char * content ):
+    def _parse_key( self, content ):
         """
           Consume a field key, which may or may not be quoted.
             :param content str The input to consume
             :return: dict The collected string and any remaining content.
         """
-        #length = len(content)
-        #if length == 0:
-        if content[0] == 0:
+        length = len(content)
+        if length == 0:
             return [None, None]
         collected = ''
-        if content[0] == 34:
-            result = self._parse_string( content + 1 )
-            return [ result[0], result[1][1:] ]
+        if content[ 0 ] == '"':
+            result = self._parse_string( content[1:] )
+            return [ result[ 0 ], result[1][1:] ]
 
-        cdef int i
         i = 0
-        while content[i] != 58:
-        #for i in range(0, length):
-            #c = content[i]
-            #if c == 58 or c==0:
-            #    break
-            i+=1
-                
-        return [ content[:i].decode('UTF-8'), content+i+1 ]
+        for i in range(0, length):
+            c = content[i]
+            if c == ':':
+                break
+            else:
+                collected += c
 
+        return [ collected, content[( i + 1 ):] ]
 
     def _parse_value( self, content ):
         """
@@ -261,52 +255,6 @@ class OrientSerializationCSV(object):
         else:
             return [ None, content ]
 
-    '''
-    def _parse_value( self, char * content ):
-        """
-          Consume a field value.
-            :param: content str The input to consume
-            :return: list The collected value and any remaining content.
-        """
-        c = ''
-        while content[0] == '32':
-            content+=1
-        #content = content.lstrip( " " )
-        try:
-            c = content[ 0 ]  # string index out of range 0
-        except IndexError:
-            return [None, content]
-            
-        if c == 44:
-            return [ None, content ]
-        elif c == 34:
-            return self._parse_string( content+1 )
-        elif c == 35:
-            return self._parse_rid( content+1 )
-        elif c == 91:
-            return self._parse_collection( content+1 )
-        elif c == 60:
-            return self._parse_set( content+1 )
-        elif c == 123:
-            return self._parse_map( content+1 )
-        elif c == 40:
-            return self._parse_record( content+1 )
-        elif c == 37:
-            return self._parse_bag( content+1 )
-        elif c == 95:
-            return self._parse_binary( content+1 )
-        elif c == 45 or (c>=48 and c<=57):
-            return self._parse_number( content )
-        elif c == 110 and content[ 0:4 ] == 'null':
-            return [ None, content[ 4: ] ]
-        elif c == 116 and content[ 0:4 ] == 'true':
-            return [ True, content[ 4: ] ]
-        elif c == 102 and content[ 0:5 ] == 'false':
-            return [ False, content[ 5: ] ]
-        else:
-            return [ None, content ]
-    '''
-        
     @staticmethod
     def _is_numeric( content ):
         try:
@@ -342,7 +290,7 @@ class OrientSerializationCSV(object):
 
         return [ collected, content[ ( i + 1 ): ] ]
 
-    def _parse_number(self, char* content):
+    def _parse_number(self, content):
         """
            Consume a number.
            If the number has a suffix, consume it also and instantiate the
@@ -350,33 +298,23 @@ class OrientSerializationCSV(object):
            :param content str The content to consume
            :return: list The collected number and any remaining content.
         """
-        #length = len(content)
+        length = len(content)
+        collected = ''
         is_float = False
-        #collected = ''
-        cdef int i
         i = 0
-        while True:
-        #for i in range(0, length):
+        for i in range(0, length):
             c = content[i]
-            if c==0:
-                break
-            if c == 45 or (c>=48 and c<=57):
-                #collected += c
-                i+=1
-            elif c == 46:
+            if c == '-' or self._is_numeric(c):
+                collected += c
+            elif c == '.':
                 is_float = True
-                i+=1
-                #collected += c
-            elif c == 69 and is_float:
-                #collected += c
-                i+=1
+                collected += c
+            elif c == 'E' and is_float:
+                collected += c
             else:
                 break
 
-            
-        collected = content[:i].decode('UTF-8')
-        #content = content[i:]
-        content += i
+        content = content[i:]
         c = ''
         try:
             c = content[ 0 ]  # string index out of range 0
@@ -385,33 +323,27 @@ class OrientSerializationCSV(object):
 
         if c == 'a':
             collected = date.fromtimestamp(float(collected) / 1000)
-            #content = content[1:]
-            content += 1
+            content = content[1:]
         elif c == 't':
             # date
             collected = datetime.fromtimestamp(float(collected) / 1000)
-            #content = content[1:]
-            content += 1
+            content = content[1:]
         elif c == 'f' or c == 'd':
             # float # double
             collected = float(collected)
-            #content = content[1:]
-            content += 1
+            content = content[1:]
         elif c == 'c':
             collected = Decimal(collected)
-            #content = content[1:]
-            content += 1
+            content = content[1:]
         elif c == 'b' or c == 's':
             collected = int(collected)
-            #content = content[1:]
-            content += 1
+            content = content[1:]
         elif c == 'l':
             if sys.version_info[0] < 3:
                 collected = long(collected)  # python 2.x long type
             else:
                 collected = int(collected)
-            #content = content[1:]
-            content += 1    
+            content = content[1:]
         elif is_float:
             collected = float(collected)
         else:
@@ -625,7 +557,7 @@ class OrientSerialization(object):
     Binary = "ORecordSerializerBinary"
 
     @classmethod
-    def get_impl(cls, impl):
+    def get_impl(cls, impl, props=None):
         impl_map = {
             cls.CSV: OrientSerializationCSV,
             cls.Binary: OrientSerializationBinary,
@@ -635,4 +567,7 @@ class OrientSerialization(object):
             raise PyOrientBadMethodCallException(
                 impl + ' is not an availableserialization type', []
             )
-        return implementation()
+        if impl == cls.Binary:
+            return implementation(props)
+        else:
+            return implementation()
